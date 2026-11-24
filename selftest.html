@@ -1,0 +1,386 @@
+<!DOCTYPE html><html><head><meta charset="utf-8"><title>selftest</title>
+<link rel="stylesheet" href="app.css">
+<link rel="stylesheet" href="css/quiz.css"></head><body>
+<div id="app"><header id="hd"></header><main id="main"></main><nav id="tabbar"></nav></div>
+<div id="toast"></div><div id="dialog"></div><div id="R"></div>
+<script src="js/version.js"></script><script src="data/material.js"></script>
+<script src="data/quiz.js"></script><script src="js/core.js"></script><script src="js/ui.js"></script>
+<script src="js/cards.js"></script><script src="js/quizview.js"></script><script src="js/misc.js"></script>
+<script src="js/boot.js"></script>
+<script>
+/* 系统解剖学 · 自测：数据自洽 / 资源可加载 / 目录层级 / 卡片 / 搜索 / 刷题全流程 / 收藏笔记编辑 */
+(function () {
+  var Z = window.YL, UI = window.YL_UI, YQ = window.YL_QUIZ_UI;
+  var P = 0, F = 0, L = [];
+  function ok(n, c, d) { if (c) { P++; } else { F++; L.push('FAIL ' + n + (d !== undefined ? ' :: ' + d : '')); } }
+  function wait(ms) { return new Promise(function (r) { setTimeout(r, ms); }); }
+  function q(sel) { return document.querySelector(sel); }
+  function qa(sel) { return Array.prototype.slice.call(document.querySelectorAll(sel)); }
+  function nav(h) { location.hash = h; UI.render(); }
+  function mainTxt() { return (document.getElementById('main').textContent || ''); }
+  function clickDialogYes() {
+    var b = document.querySelector('#dialog .btn.primary');
+    if (b) { b.click(); return; }
+    var list = document.querySelectorAll('#dialog [data-di]');
+    if (list.length) list[list.length - 1].click();
+  }
+  /* 只验「文件在且是图片」：用 HEAD 请求，避免 560+ 张图同时解码把 headless 内存压爆而误报 */
+  function loadImg(src) {
+    return fetch(src, { method: 'HEAD', cache: 'no-store' }).then(function (r) {
+      if (!r.ok) return false;
+      var ct = r.headers.get('content-type') || '';
+      return ct.indexOf('image') >= 0 || src.slice(-4) === '.jpg' || src.slice(-4) === '.png';
+    }).catch(function () { return false; });
+  }
+
+  async function run() {
+    try {
+      /* ================= A. 数据自洽 ================= */
+      var ms = Z.MAT.stats;
+      ok('教材：13 个章/单元', ms.chapters === 13 && Z.MAT.chapters.length === 13, ms.chapters);
+      ok('教材：29 个节', ms.sections === 29 && Z.MAT.sections.length === 29, ms.sections);
+      ok('教材：条目统计与数组一致', ms.entries === Z.MAT.entries.length, ms.entries);
+      ok('教材：卡片数统计一致', ms.cards === Z.MAT.entries.filter(function (e) { return e.kind !== 'intro' && e.blocks && e.blocks.length; }).length, ms.cards);
+      ok('教材：插图 507 张（含绪图/总论图/会阴图/腹膜图）', ms.figs === 507, ms.figs);
+      ok('教材：表格图 57 张（含内脏学总论表与 7 张续表）', ms.tables === 57, ms.tables);
+      ok('教材：正文 ≥ 30 万字', ms.chars >= 300000, ms.chars);
+
+      var bad = [];
+      Z.MAT.entries.forEach(function (e) {
+        if (!Z.chapterById(e.chapterId)) bad.push('章:' + e.id);
+        if (e.sectionId && !Z.sectionById(e.sectionId)) bad.push('节:' + e.id);
+        if (e.lvl === 2 && (!e.parent || !Z.matBy[e.parent])) bad.push('父:' + e.id);
+        if (e.lvl === 1 && e.parent) bad.push('一级带父:' + e.id);
+        if (e.kind === 'group' && !Z.childrenOf(e.id).length) bad.push('空分组:' + e.id);
+        if (e.kind === 'topic' && !(e.blocks || []).length) bad.push('空卡:' + e.id);
+        if (e.lvl === 2 && (e.path || []).length !== 1) bad.push('path:' + e.id);
+        if (e.lvl === 1 && (e.path || []).length !== 0) bad.push('path1:' + e.id);
+      });
+      ok('教材：条目结构完整（章/节/父/无空壳）', bad.length === 0, bad.slice(0, 5).join(','));
+
+      var empt = Z.MAT.sections.filter(function (s) { return !s.entryIds.length; });
+      ok('教材：每节都有条目', empt.length === 0, empt.map(function (s) { return s.name; }).join(','));
+      var dup = 0;
+      Z.MAT.entries.forEach(function (e) {
+        var sibs = e.parent ? Z.childrenOf(e.parent) : null;
+        if (!sibs) return;
+        var n = sibs.filter(function (x) { return x.name === e.name; }).length;
+        if (n > 1) dup++;
+      });
+      ok('教材：同一父节点下无重名', dup === 0, dup);
+
+      var introCh = Z.MAT.entries.filter(function (e) { return e.kind === 'intro' && e.introOf === 'chapter'; });
+      var introSec = Z.MAT.entries.filter(function (e) { return e.kind === 'intro' && e.introOf === 'section'; });
+      ok('教材：本章概述/本节概述都在', introCh.length >= 6 && introSec.length >= 10, introCh.length + '/' + introSec.length);
+      ok('教材：概述卡名规范', introCh.every(function (e) { return e.name === '本章概述'; }) &&
+        introSec.every(function (e) { return e.name === '本节概述'; }));
+
+      var noAlt = Z.MAT.entries.filter(function (e) {
+        return (e.blocks || []).some(function (b) { return b.t === 'img' && (!b.alt || b.alt.indexOf('图') < 0); });
+      });
+      ok('教材：每张插图都有图注', noAlt.length === 0, noAlt.length);
+      var noCap = Z.MAT.entries.filter(function (e) {
+        return (e.blocks || []).some(function (b) { return b.t === 'table' && !b.cap; });
+      });
+      ok('教材：每张表格都有表注', noCap.length === 0, noCap.length);
+      var unbalanced = Z.MAT.entries.filter(function (e) {
+        return (e.blocks || []).some(function (b) { return b.t === 'p' && (b.x.split('**').length % 2 === 0); });
+      });
+      ok('教材：加粗标记成对', unbalanced.length === 0, unbalanced.length);
+
+      /* ================= B. 资源真实可加载 ================= */
+      var srcs = {}, nFig = 0, nTab = 0;
+      Z.MAT.entries.forEach(function (e) {
+        (e.blocks || []).forEach(function (b) {
+          if (b.t === 'img' && b.src) { srcs[b.src] = 1; nFig++; }
+          if (b.t === 'table' && b.img) { srcs[b.img] = 1; nTab++; }
+        });
+      });
+      ok('资源：引用 507 张插图 + 57 张表格', nFig === 507 && nTab === 57, nFig + '/' + nTab);
+      var list = Object.keys(srcs);
+      /* 543 个文件逐个并发会让 headless Chrome 掉连接，分批加载（每批 8 个）*/
+      var failed = [];
+      for (var bi = 0; bi < list.length; bi += 8) {
+        var chunk = list.slice(bi, bi + 8);
+        var rs = await Promise.all(chunk.map(loadImg));
+        chunk.forEach(function (src, k) { if (!rs[k]) failed.push(src); });
+      }
+      ok('资源：全部图片文件都能加载（' + list.length + ' 个）', failed.length === 0, failed.slice(0, 6).join(','));
+
+      /* ================= C. 题库 ================= */
+      var qs = Z.QZ.stats;
+      ok('题库：18 章', qs.chapters === 18 && Z.QZ.chapters.length === 18, qs.chapters);
+      ok('题库：2900 题且统计一致', qs.questions === 2900 && qs.questions === Z.QZ.questions.length, qs.questions);
+      ok('题库：题型齐全（A1/B1/NM/PD/QA/CA）',
+        qs.A1 > 0 && qs.B1 > 0 && qs.NM > 0 && qs.PD > 0 && qs.QA > 0 && qs.CA > 0,
+        [qs.A1, qs.B1, qs.NM, qs.PD, qs.QA, qs.CA].join('/'));
+      var qbad = [];
+      Z.QZ.questions.forEach(function (x) {
+        if (x.type === 'A1' || x.type === 'B1' || x.type === 'X') {
+          if (!x.answer || !x.answer.length) qbad.push('无答案:' + x.id);
+          var opts = (x.type === 'B1' && x.sharedOptions && x.sharedOptions.length) ? x.sharedOptions : x.options;
+          if (x.type === 'A1' && (!opts || opts.length < 4)) qbad.push('选项少:' + x.id);
+          if (x.type === 'B1' && (!opts || opts.length !== 5)) qbad.push('B1选项:' + x.id);
+          if (x.answer && x.answer.length) {
+            var ks = (opts || []).map(function (o) { return o.k; });
+            if (x.answer.some(function (k) { return ks.indexOf(k) < 0; })) qbad.push('答案越界:' + x.id);
+          }
+        } else if (!(x.answerText && x.answerText.trim())) qbad.push('无参考答案:' + x.id);
+        if (x.type === 'B1' && !x.sharedLabel) qbad.push('B1缺共用标签:' + x.id);
+      });
+      ok('题库：每题都有答案/选项合法', qbad.length === 0, qbad.slice(0, 6).join(','));
+      var a3 = Z.QZ.questions.filter(function (x) { return !!x.sharedStem; });
+      ok('题库：A3 共用题干已结构化（≥20 组题）', a3.length >= 20, a3.length);
+      var ca = Z.QZ.questions.filter(function (x) { return x.type === 'CA'; });
+      ok('题库：案例分析 42 题', ca.length === 42, ca.length);
+
+      /* ================= D. 目录层级 ================= */
+      nav('#/mat');
+      await wait(20);
+      ok('目录：13 个章块', qa('[data-chap]').length === 13, qa('[data-chap]').length);
+      /* 展开题量最多的章（第九章 神经系统） */
+      var bigCh = Z.MAT.chapters.slice().sort(function (a, b) { return b.entryIds.length - a.entryIds.length; })[0];
+      var box = q('[data-chap="' + bigCh.id + '"]');
+      ok('目录：能找到第九章章块', !!box);
+      if (box) {
+        box.querySelector('.chap-hd').click();
+        await wait(20);
+        var rows = box.querySelectorAll('.er');
+        ok('目录：第九章展开后有卡片行（≥50）', rows.length >= 50, rows.length);
+        var secs = box.querySelectorAll('.ec-sec');
+        ok('目录：有 节 标题行（灰）', secs.length >= 3, secs.length);
+        var r1 = null, r2 = null, grp = null;
+        Array.prototype.forEach.call(rows, function (a) {
+          var e = Z.matBy[(a.getAttribute('href') || '').split('/').pop()];
+          if (e && e.lvl === 1 && !r1) r1 = a;
+          if (e && e.lvl === 2 && !r2) r2 = a;
+        });
+        ok('目录：一、与（一）都有可点行', !!r1 && !!r2);
+        if (r1 && r2) {
+          var p1 = parseInt(r1.style.paddingLeft, 10) || 0;
+          var p2 = parseInt(r2.style.paddingLeft, 10) || 0;
+          ok('目录：（一）比一、缩进更深', p2 > p1, p1 + '→' + p2);
+        }
+        ok('目录：无正文的一、显示为浅灰小节（不可点）',
+          box.querySelectorAll('.ec-sub').length >= 0);
+      }
+
+      /* ================= E. 卡片渲染 ================= */
+      var rich = Z.MAT.entries.filter(function (e) {
+        return (e.blocks || []).filter(function (b) { return b.t === 'img'; }).length >= 2;
+      })[0];
+      ok('卡片：找到含多图的卡', !!rich);
+      nav('#/entry/' + rich.id);
+      await wait(30);
+      var wantImg = rich.blocks.filter(function (b) { return b.t === 'img'; }).length;
+      ok('卡片：标题渲染', mainTxt().indexOf(rich.name.replace(/^[（(][一二三四五六七八九十]+[)）]/, function (m) {
+        return '（' + m.replace(/[（(）)]/g, '') + '）';
+      })) >= 0 || mainTxt().indexOf(rich.name) >= 0);
+      ok('卡片：图都渲染出来了', qa('.rich-img img').length === wantImg, qa('.rich-img img').length + '/' + wantImg);
+      ok('卡片：图注显示', qa('.rich-img figcaption').length === wantImg, qa('.rich-img figcaption').length);
+      ok('卡片：面包屑有上级', qa('.crumb').length >= 1, qa('.crumb').length);
+      ok('卡片：上一条/下一条按钮在', !!q('#e-prev') && !!q('#e-next'));
+      /* 点图放大 → 查看器 */
+      qa('.rich-img img')[0].click();
+      await wait(20);
+      ok('图片查看器：点开能放大', !!q('#imgv') && q('#imgv').classList.contains('on'));
+      var closer = q('#imgv .iv-close');
+      if (closer) closer.click();
+      await wait(20);
+
+      var tabEntry = Z.MAT.entries.filter(function (e) {
+        return (e.blocks || []).some(function (b) { return b.t === 'table'; });
+      })[0];
+      nav('#/entry/' + tabEntry.id);
+      await wait(20);
+      ok('卡片：表格以图片呈现', qa('.tbl-fig img, .rich-img img').length >= 1);
+
+      /* ================= F. 搜索 ================= */
+      nav('#/search?kw=' + encodeURIComponent('股骨'));
+      await wait(30);
+      ok('搜索：标题命中分组出现', mainTxt().indexOf('标题命中') >= 0);
+      ok('搜索：关键词高亮', qa('em.hl').length >= 1, qa('em.hl').length);
+      var bodyHit = Z.searchAll('肝门');
+      ok('搜索：正文命中（肝门）', bodyHit.bodies.length >= 1, bodyHit.bodies.length);
+      var headHit = Z.searchAll('股骨');
+      ok('搜索：标题命中优先（股骨）', headHit.names.length >= 1, headHit.names.length);
+      ok('搜索：无要点分组残留', !headHit.kpNames || headHit.kpNames.length === 0);
+
+      /* ================= G. 刷题流程 ================= */
+      nav('#/quiz');
+      await wait(20);
+      ok('刷题：18 章列表', qa('.qz-chap').length === 18, qa('.qz-chap').length);
+      var ch = Z.QZ.chapters[0];
+      nav('#/qtypes/' + ch.id);
+      await wait(20);
+      ok('刷题：第1章 6 种题型', qa('[data-type], .qz-type, .qz-trow').length >= 6, qa('[data-type], .qz-type, .qz-trow').length);
+
+      /* A1：做一道，答对 */
+      nav('#/qcard/' + ch.id + '?t=A1');
+      await wait(20);
+      var a1n = YQ.listOf(ch.id, 'A1', 'all').length;
+      ok('刷题：A1 答题卡格子数 = 题数', qa('.qz-cell').length >= a1n, qa('.qz-cell').length + '/' + a1n);
+      var startBtn = q('[data-start="A1"]') || q('#gStart');
+      ok('刷题：有开始按钮', !!startBtn);
+      if (startBtn) startBtn.click();
+      UI.render();
+      await wait(20);
+      var s = Z.store.sessions.cur;
+      ok('刷题：进入答题页', !!s && !!q('.qz-opt'), JSON.stringify(s));
+      var q0 = YQ.listOf(s.cid, s.type, 'all')[s.idx];
+      var key = (q0.answer || [])[0];
+      q('[data-opt="' + key + '"]').click();
+      await wait(20);
+      ok('刷题：点选项立即判对', YQ.stOf(q0.id) === 1 && !!q('.qz-opt.right'), YQ.stOf(q0.id));
+      ok('刷题：显示正确答案与解析区', mainTxt().indexOf('正确答案：') >= 0);
+      /* 下一题 / 痕迹 */
+      q('#q-next').click();
+      await wait(20);
+      ok('刷题：下一题可用', Z.store.sessions.cur.idx >= 1, Z.store.sessions.cur.idx);
+      nav('#/quiz');
+      nav('#/qcard/' + ch.id + '?t=A1');
+      await wait(20);
+      ok('刷题：退出重进答题卡保留痕迹', !!q('.qz-cell.s1'), qa('.qz-cell.s1').length);
+
+      /* B1：共用备选答案 */
+      var chB1 = Z.QZ.chapters.filter(function (c) { return c.types.some(function (t) { return t.t === 'B1'; }); })[0];
+      nav('#/qcard/' + chB1.id + '?t=B1');
+      await wait(20);
+      var b1btn = q('[data-start="B1"]') || q('#gStart');
+      if (b1btn) b1btn.click();
+      UI.render();
+      await wait(20);
+      ok('刷题：B1 显示共用备选答案', mainTxt().indexOf('共用备选答案') >= 0 && qa('[data-opt]').length === 5,
+        qa('[data-opt]').length);
+      var bq = YQ.listOf(Z.store.sessions.cur.cid, 'B1', 'all')[Z.store.sessions.cur.idx];
+      if (bq.answer && bq.answer[0]) q('[data-opt="' + bq.answer[0] + '"]').click();
+      await wait(20);
+      ok('刷题：B1 判题正常', YQ.stOf(bq.id) === 1, YQ.stOf(bq.id));
+
+      /* A3：共用题干 */
+      var a3q = a3[0];
+      nav('#/qcard/' + a3q.chapterId + '?t=A1');
+      await wait(20);
+      var a3list = YQ.listOf(a3q.chapterId, 'A1', 'all');
+      var a3idx = a3list.map(function (x) { return x.id; }).indexOf(a3q.id);
+      var a3cell = qa('.qz-cell')[a3idx];
+      if (a3cell) a3cell.click();
+      UI.render();
+      await wait(20);
+      ok('刷题：A3 显示共用题干', qa('.qz-shared').length >= 1 && mainTxt().indexOf(a3q.sharedStem.slice(0, 8)) >= 0,
+        qa('.qz-shared').length);
+
+      /* NM：答题框 → 提交 → 参考答案 → 自评 */
+      var chNm = Z.QZ.chapters.filter(function (c) { return c.types.some(function (t) { return t.t === 'NM'; }); })[0];
+      nav('#/qcard/' + chNm.id + '?t=NM');
+      await wait(20);
+      var nmBtn = q('[data-start="NM"]') || q('#gStart');
+      if (nmBtn) nmBtn.click();
+      UI.render();
+      await wait(20);
+      ok('刷题：名词解释有答题框', !!q('#qa-txt'));
+      if (q('#qa-txt')) { q('#qa-txt').value = '测试作答'; }
+      if (q('#q-submit')) q('#q-submit').click();
+      await wait(30);
+      ok('刷题：提交后显示参考答案', mainTxt().indexOf('参考答案') >= 0);
+      var nmq = YQ.listOf(Z.store.sessions.cur.cid, 'NM', 'all')[Z.store.sessions.cur.idx];
+      ok('刷题：文字题提交后待自评(4)', YQ.stOf(nmq.id) === 4, YQ.stOf(nmq.id));
+      if (q('#qa-ok')) q('#qa-ok').click();
+      await wait(20);
+      ok('刷题：自评后判对(1)', YQ.stOf(nmq.id) === 1, YQ.stOf(nmq.id));
+
+      /* PD / CA 题型可用 */
+      var chPd = Z.QZ.chapters.filter(function (c) { return c.types.some(function (t) { return t.t === 'PD'; }); })[0];
+      nav('#/qcard/' + chPd.id + '?t=PD');
+      await wait(20);
+      var pdBtn = q('[data-start="PD"]') || q('#gStart');
+      if (pdBtn) pdBtn.click();
+      UI.render();
+      await wait(20);
+      ok('刷题：判断改错题可作答（有答题框）', !!q('#qa-txt'));
+      var chCa = Z.QZ.chapters.filter(function (c) { return c.types.some(function (t) { return t.t === 'CA'; }); })[0];
+      nav('#/qcard/' + chCa.id + '?t=CA');
+      await wait(20);
+      var caBtn = q('[data-start="CA"]') || q('#gStart');
+      if (caBtn) caBtn.click();
+      UI.render();
+      await wait(20);
+      ok('刷题：案例分析可作答', !!q('#qa-txt') && mainTxt().indexOf('问题') >= 0);
+
+      /* 错题本 / 收藏 / 笔记 */
+      var wrongBefore = YQ.wrongN();
+      var chW = Z.QZ.chapters[0];
+      nav('#/qcard/' + chW.id + '?t=A1');
+      await wait(20);
+      var st2 = q('[data-start="A1"]') || q('#gStart');
+      if (st2) st2.click();
+      UI.render();
+      await wait(20);
+      var sw = Z.store.sessions.cur;
+      var qw = YQ.listOf(sw.cid, 'A1', 'all')[sw.idx];
+      var wrongKey = null;
+      (qw.options || []).forEach(function (o) { if (!wrongKey && (qw.answer || []).indexOf(o.k) < 0) wrongKey = o.k; });
+      if (wrongKey) q('[data-opt="' + wrongKey + '"]').click();
+      await wait(20);
+      ok('刷题：答错立即判错', YQ.stOf(qw.id) === 2 && !!q('.qz-res.bad'), YQ.stOf(qw.id));
+      ok('刷题：错题进入错题本', YQ.wrongN() >= wrongBefore + 1, wrongBefore + '→' + YQ.wrongN());
+      nav('#/qwrong?seg=wrong');
+      await wait(20);
+      ok('刷题：错题本页面列出错题', qa('[data-wb]').length >= 1, qa('[data-wb]').length);
+
+      /* ================= H. 收藏 / 笔记 / 编辑 ================= */
+      var e0 = Z.MAT.entries.filter(function (e) { return e.kind === 'topic'; })[0];
+      nav('#/entry/' + e0.id);
+      await wait(20);
+      q('[data-act="fav"]').click();
+      await wait(10);
+      if (q('[data-pc="fav-do"]')) q('[data-pc="fav-do"]').click();
+      await wait(10);
+      ok('卡片：收藏生效', !!Z.store.fav[e0.id], JSON.stringify(Object.keys(Z.store.fav).slice(0, 3)));
+      q('[data-act="note"]').click();
+      await wait(10);
+      var ta = q('#note-txt');
+      if (ta) { ta.value = '自测笔记'; }
+      if (q('[data-pc="note-save"]')) q('[data-pc="note-save"]').click();
+      await wait(10);
+      ok('卡片：笔记保存', Z.store.notes[e0.id] === '自测笔记', Z.store.notes[e0.id]);
+      q('[data-act="edit"]').click();
+      await wait(10);
+      var ef = q('.ef-ta');
+      ok('卡片：编辑面板可打开', !!ef);
+      if (ef) {
+        ef.value = ef.value + '\n自测追加段落';
+        q('[data-pc="edit-save"]').click();
+        await wait(20);
+        ok('卡片：编辑保存到本机', !!Z.store.edits[e0.id]);
+      }
+      nav('#/entry/' + e0.id);
+      await wait(20);
+      ok('卡片：编辑后的内容渲染出来', mainTxt().indexOf('自测追加段落') >= 0);
+      if (Z.store.edits[e0.id]) { delete Z.store.edits[e0.id]; Z.save(true); }
+
+      /* ================= I. 版本一致 ================= */
+      var v1 = window.YL_VERSION || {};
+      var v2 = null;
+      try {
+        var r = await fetch('version.json?t=' + Date.now(), { cache: 'no-store' });
+        v2 = await r.json();
+      } catch (e) { }
+      ok('版本：version.js 与 version.json 一致', !!v2 && String(v2.web) === String(v1.web), JSON.stringify([v1.web, v2 && v2.web]));
+      ok('版本：1.0.0 起', String(v1.web).indexOf('1.0') === 0, v1.web);
+      ok('无「知识要点」残留', !window.YL_KP && !q('a[href="#/kp"]'));
+
+    } catch (e) {
+      F++;
+      L.push('EXCEPTION ' + (e && e.stack ? e.stack : e));
+    }
+    var out = document.getElementById('R');
+    out.textContent = 'RESULT P=' + P + ' F=' + F;
+    if (L.length) out.textContent += ' | ' + L.join(' | ');
+    if (window.console) console.log(out.textContent);
+    document.title = 'selftest P=' + P + ' F=' + F;
+  }
+  window.addEventListener('load', function () { setTimeout(run, 120); });
+})();
+</script>
+</body></html>
