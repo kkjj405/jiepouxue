@@ -1,0 +1,17 @@
+<!doctype html><html><head><meta charset="utf-8"><style>
+html,body{margin:0}iframe{width:390px;height:700px;border:0}#out{font:12px monospace;white-space:pre;padding:6px}
+</style></head><body><div id="out">…</div><iframe id="f" src="/index.html?dbg=1#/entry/e267"></iframe>
+<script>
+var f=document.getElementById('f'),o=document.getElementById('out');
+function wait(ms){return new Promise(function(r){setTimeout(r,ms)})}
+f.onload=function(){setTimeout(async function(){
+  var w=f.contentWindow,d=f.contentDocument;
+  o.textContent='hash='+d.location.hash+'\nYL='+!!w.YL+' UI='+!!w.YL_UI+'\nlightbox type='+typeof (w.YL_UI&&w.YL_UI.lightbox)+'\n';
+  try{ w.YL_UI.lightbox('img/tab/t7-1.jpg'); }catch(e){ o.textContent+='ERR lightbox: '+e.message+'\n'; }
+  await wait(600);
+  o.textContent+='imgv.on='+!!d.querySelector('#imgv.on')+'\n';
+  w.location.hash='#/search?kw='+encodeURIComponent('股骨');
+  await wait(800);
+  o.textContent+='search hash='+d.location.hash+'\nmain='+(d.getElementById('main').textContent||'').slice(0,60)+'\n';
+},1500)};
+</script></body></html>

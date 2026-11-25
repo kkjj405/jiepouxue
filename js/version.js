@@ -1,2 +1,2 @@
-/* 版本号：发版时改这里 + android BUNDLED_* */
-window.YL_VERSION = { app: '1.0.0', web: '1.0.0', build: '2026-11-24' };
+/* 版本号：由 build_pwa.py 按 --web-version 自动重写 */
+window.YL_VERSION = { app: '1.0.1', web: '1.0.1', build: '2026-11-25' };

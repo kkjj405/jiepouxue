@@ -1,4 +1,7 @@
 [
+  "_probe_imgv.html",
+  "_probe_qcard.html",
+  "_wrap_dbg.html",
   "app.css",
   "css/quiz.css",
   "data/material.js",
