@@ -175,7 +175,7 @@
     var kpIds = ids.filter(function (id) { return Z.kpBy[id]; });
     var h = [];
     if (!ids.length) {
-      h.push(UI.emptyBox('还没有收藏', '在教材卡片或知识要点里点「收藏」即可；刷题的题目收藏在刷题板块内'));
+      h.push(UI.emptyBox('还没有收藏', '在教材卡片里点「收藏」即可；刷题的题目收藏在刷题板块内'));
     } else {
       if (matIds.length) {
         h.push('<div class="tiny dim" style="margin:2px 4px 6px">教材卡片 · ' + matIds.length + ' 张</div>');
