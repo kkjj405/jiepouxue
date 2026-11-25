@@ -108,6 +108,29 @@
   }
   function back() { if (location.hash && location.hash !== '#/home') history.back(); else go('#/home'); }
 
+  /* ---------- 系统返回键（安卓自带返回 / 侧滑返回） ----------
+     优先级：弹窗 → 图片预览 → 路由上一级。返回 true 表示「已处理，别退出 App」。 */
+  var UP = {
+    entry: '#/mat', mat: '#/home', search: '#/home',
+    quiz: '#/home', qtypes: '#/quiz', qcard: '#/quiz', qrun: '#/quiz', qwrong: '#/quiz',
+    fav: '#/me', me: '#/home', about: '#/me', tip: '#/me'
+  };
+  function systemBack() {
+    try {
+      if (dialogOpen()) { closeDialog(null); return true; }
+      if (iv.open) { ivClose(); return true; }
+      var h = location.hash || '#/home';
+      if (!h || h === '#/' || h === '#/home') return false;
+      var r = parseHash();
+      var up = UP[r.name] || '#/home';
+      if (history.length > 1) { history.back(); return true; }
+      go(up);
+      return true;
+    } catch (e) { return false; }
+  }
+  window.DS_BACK = systemBack;
+  window.appBack = systemBack;   /* 兼容旧壳子里的名字 */
+
   var dlgResolve = null;
   function dialog(opts) {
     opts = opts || {};

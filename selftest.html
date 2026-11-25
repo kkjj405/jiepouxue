@@ -88,6 +88,10 @@
       });
       ok('教材：加粗标记成对', unbalanced.length === 0, unbalanced.length);
 
+      /* ================= B0. 系统返回键 ================= */
+      ok('返回键：DS_BACK 已定义（安卓返回交给网页处理）', typeof window.DS_BACK === 'function');
+      ok('返回键：首页返回 false（交给安卓退出）', !!window.DS_BACK && window.DS_BACK() === false);
+
       /* ================= B. 资源真实可加载 ================= */
       var srcs = {}, nFig = 0, nTab = 0;
       Z.MAT.entries.forEach(function (e) {

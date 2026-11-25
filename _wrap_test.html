@@ -1,0 +1,41 @@
+<!doctype html><html><head><meta charset="utf-8"><style>
+html,body{margin:0;background:#fff}iframe{width:390px;height:844px;border:0}
+#out{font:13px monospace;white-space:pre;padding:8px}
+</style></head><body>
+<div id="out">running…</div>
+<iframe id="f" src="/index.html?t=1#/home"></iframe>
+<script>
+var f=document.getElementById('f'), out=document.getElementById('out'), L=[];
+function log(s){ L.push(s); out.textContent=L.join('\n'); console.log(s); }
+function W(){ return f.contentWindow; }
+function H(){ try{ return f.contentDocument.location.hash; }catch(e){ return 'ERR'; } }
+function wait(ms){ return new Promise(function(r){ setTimeout(r, ms); }); }
+f.onload=function(){
+  setTimeout(async function(){
+    var w=W();
+    log('DS_BACK defined: ' + (typeof w.DS_BACK));
+    // 1) 首页 → false
+    log('home back = ' + w.DS_BACK() + ' (期望 false)');
+    // 2) 进教材目录
+    w.location.hash='#/mat'; await wait(500);
+    log('at ' + H() + ' back = ' + w.DS_BACK()); await wait(500);
+    log('after back hash = ' + H() + ' (期望 #/home)');
+    // 3) 进卡片再返回
+    w.location.hash='#/entry/e015'; await wait(600);
+    log('at ' + H() + ' back = ' + w.DS_BACK()); await wait(500);
+    log('after back hash = ' + H() + ' (期望 #/mat)');
+    // 4) 打开大图再返回
+    w.location.hash='#/entry/e020'; await wait(600);
+    w.YL_UI.lightbox('img/tab/t1-1.jpg'); await wait(400);
+    var ivOpen = !!f.contentDocument.querySelector('#imgv.on');
+    var b = w.DS_BACK(); await wait(400);
+    log('lightbox open=' + ivOpen + ' back=' + b + ' 关闭后 imgv.on=' + !!f.contentDocument.querySelector('#imgv.on') + ' hash=' + H());
+    // 5) 弹窗
+    w.YL_UI.dialog({title:'t'}).then(function(){}); await wait(300);
+    var dOpen = f.contentDocument.getElementById('dialog').classList.contains('on');
+    var b2 = w.DS_BACK(); await wait(200);
+    log('dialog open=' + dOpen + ' back=' + b2 + ' 关闭后=' + f.contentDocument.getElementById('dialog').classList.contains('on'));
+    log('DONE');
+  }, 2500);
+};
+</script></body></html>

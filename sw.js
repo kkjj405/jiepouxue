@@ -1,10 +1,12 @@
 /* 系统解剖学 · Service Worker（离线优先；核心与导图分缓存）
- * 版本：1.0.0　核心 19 项　导图 564 项
+ * 版本：1.0.1　核心 21 项　导图 564 项
  * 本文件由 build_pwa.py 生成，勿手改。
  */
-const CORE = 'jiepou-anatomy-v1.0.0';
+const CORE = 'jiepou-anatomy-v1.0.1';
 const IMG = 'jiepou-anatomy-img-5cd490abb9';
 const CORE_ASSETS = [
+  "./_wrap_hero.html",
+  "./_wrap_test.html",
   "./app.css",
   "./index.html",
   "./manifest.webmanifest",

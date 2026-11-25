@@ -11,6 +11,9 @@
     '制作不易，可以给作者一点赞赏嘛，赞赏入口在「我的 → 赞赏支持」。'
   ];
 
+  /* 封面卡背景：胸廓线稿（自己画的，7 对肋骨 + 胸骨 + 脊柱） */
+  var HERO_SVG = '<svg viewBox="0 0 200 170" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round"><path d="M98.5 30.0 C66.4 31.2 44.0 39.0 45.1 46.8 C61.9 55.2 87.7 58.8 89.5 60.0"/><path d="M101.5 30.0 C133.6 31.2 156.0 39.0 154.9 46.8 C138.1 55.2 112.3 58.8 110.5 60.0"/><path d="M98.5 41.4 C59.2 42.7 32.0 51.2 33.4 59.7 C53.8 68.8 85.0 72.7 89.5 74.0"/><path d="M101.5 41.4 C140.8 42.7 168.0 51.2 166.6 59.7 C146.2 68.8 115.0 72.7 110.5 74.0"/><path d="M98.5 52.8 C54.4 54.2 24.0 63.4 25.5 72.5 C48.3 82.4 83.3 86.6 89.5 88.0"/><path d="M101.5 52.8 C145.6 54.2 176.0 63.4 174.5 72.5 C151.7 82.4 116.7 86.6 110.5 88.0"/><path d="M98.5 64.2 C52.6 65.7 21.0 75.5 22.6 85.4 C46.3 96.0 82.6 100.5 89.5 102.0"/><path d="M101.5 64.2 C147.4 65.7 179.0 75.5 177.4 85.4 C153.7 96.0 117.4 100.5 110.5 102.0"/><path d="M98.5 75.6 C54.4 77.2 24.0 87.7 25.5 98.2 C48.3 109.5 83.3 114.4 89.5 116.0"/><path d="M101.5 75.6 C145.6 77.2 176.0 87.7 174.5 98.2 C151.7 109.5 116.7 114.4 110.5 116.0"/><path d="M98.5 87.0 C60.4 88.7 34.0 99.9 35.3 111.1 C55.1 123.1 85.5 128.3 89.5 130.0"/><path d="M101.5 87.0 C139.6 88.7 166.0 99.9 164.7 111.1 C144.9 123.1 114.5 128.3 110.5 130.0"/><path d="M94.5 32c0-5 2.5-8 5.5-8s5.5 3 5.5 8v76c0 12-2.5 20-5.5 26-3-6-5.5-14-5.5-26z"/><path d="M100 30c-13-7-28-8-39-3"/><path d="M100 30c13-7 28-8 39-3"/><path d="M100 6v14"/></svg>';
+
   function annHTML() {
     var open = Z.store.meta.annOpen !== false;
     return '<div class="ann' + (open ? ' open' : '') + '" id="ann"><div class="ann-hd" id="ann-hd">' +
@@ -26,9 +29,12 @@
     var ms = Z.MAT.stats, qs = Z.QZ.stats || { questions: 0 };
     var nq = qs.questions || 0;
     var h = ['<div class="hero">' +
+      '<div class="hero-art">' + HERO_SVG + '</div>' +
+      '<div class="hero-seal serif" aria-hidden="true">解</div>' +
       '<h1 class="hero-t serif">系统解剖学</h1>' +
       '<div class="hero-en">SYSTEMATIC ANATOMY</div>' +
       '<p class="hero-d">教材卡片 · 原书插图 · 自测刷题</p>' +
+      '<div class="hero-src">人民卫生出版社《系统解剖学》第 10 版 · 习题集第 3 版</div>' +
       '<div class="hero-stats">' +
       '<div class="hs"><b>' + ms.cards + '</b><span>张卡片</span></div>' +
       '<div class="hs"><b>' + (ms.figs || 0) + '</b><span>张插图</span></div>' +
